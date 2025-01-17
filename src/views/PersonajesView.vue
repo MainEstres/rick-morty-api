@@ -1,61 +1,41 @@
 <script setup>
 import { useGetData } from '@/composable/getData';
-import { computed, nextTick, onMounted, ref, watchEffect } from 'vue';
+import { onMounted, ref } from 'vue';
 const { data, error, loading, getData } = useGetData();
 
-const page = ref(1)
-getData(`https://rickandmortyapi.com/api/character/?page=${page.value}`);
-const collection = ref([]);
+const collection = ref([])
+console.log(collection.value);
 
-watchEffect(() => {
-    if (data.value && data.value.results) {
-        collection.value = [...collection.value, ...data.value.results];
-    }
-});
+const page = ref(1);
 
-const stepLoad = ref(20);
+const loadPersonaje = async () => {
+    await getData(`https://rickandmortyapi.com/api/character/?page=${page.value}`)
 
-const collectionLoaded = computed(() =>
-    collection.value.slice(0, stepLoad.value)
-);
+    collection.value.push(...data.value.results);
+}
 
-const lastItemRef = ref(null)
+const loadMore = async () => {
+    // Guardar la posición actual del scroll
+    const scrollPosition = window.scrollY;
 
+    page.value++;
+    await getData(`https://rickandmortyapi.com/api/character/?page=${page.value}`);
+    collection.value.push(...data.value.results);
 
-const observer = new IntersectionObserver((entries) => {
-    entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-            console.log('Intersecting 👋');
-            page.value++;
-            getData(`https://rickandmortyapi.com/api/character/?page=${page.value}`);
-        }
-    });
-});
-
-
-const startObserving = async () => {
-    await nextTick();
-    if (lastItemRef.value) {
-        observer.observe(lastItemRef.value);
-    }
+    // Restaurar la posición del scroll
+    window.scrollTo(0, scrollPosition);
 };
 
 onMounted(() => {
-    startObserving();
-});
+    loadPersonaje();
+})
 
 
-
-const applyStatus = (personaje) => {
-    if (personaje.status === 'Alive') {
-        return 'bg-green-400';
-    } else if (personaje.status === 'Dead') {
-        return 'bg-red-600';
-    } return 'bg-gray-300'
-
-};
-
-
+const statusData = {
+    Alive: 'bg-green-400',
+    Dead: 'bg-red-600',
+    unknown: 'bg-gray-300'
+}
 
 </script>
 
@@ -65,34 +45,41 @@ const applyStatus = (personaje) => {
     <h1 class="text-center text-4xl pt-36 font-bold">Personajes de Rick y Morty</h1>
 
     <p class="pt-30 text-center" v-if="loading">Cargando personajes...</p>
-    <p class="pt-36" v-if="error">{{ error }}</p>
+    <p class="pt-36" v-else-if="error">{{ error }}</p>
 
-    <div v-if="data" class="flex flex-wrap justify-center gap-4 pt-8">+
+    <div v-else-if="collection" class="flex flex-wrap justify-center gap-4 pt-8">
 
-
-        <div v-for="(item, index) in collectionLoaded" :key="item.id"
-            :ref="index === collectionLoaded.length - 1 ? lastItemRef : null" class="w-64 p-4 border rounded-lg">
-            <h2 class="text-center font-semibold">{{ item.name }}</h2>
-            <p class="text-center" :class="applyStatus(item)">{{ item.status }}</p>
-            <img :src="item.image" alt="Character image" class="w-full h-auto rounded-lg" />
-        </div>
-
-
-
-
-        <!-- <div class="bg-slate-400 rounded-xl p-4 flex flex-col" v-for="personaje in data.results" :key="personaje.id">
-            <img class="rounded-full my-1 w-3/4 self-center " :src="personaje.image" :alt="personaje.name">
-            <h1 class=" text-lg  font-bold">{{ personaje.name }}</h1>
-            <div class="flex items-center gap-1">
-                <div :class="applyStatus(personaje)" class="rounded-full h-3 w-3"></div>
-                <h4 class="font-medium">{{ personaje.status }} - {{ personaje.species }}</h4>
+        <transition-group name="fade" tag="div" class="flex flex-wrap justify-center gap-4 pt-8 transition-all">
+            <div class="bg-slate-400 rounded-xl p-4 flex flex-col" v-for="personaje in collection" :key="personaje.id">
+                <img class="rounded-full my-1 w-3/4 self-center " :src="personaje.image" :alt="personaje.name">
+                <h1 class=" text-lg  font-bold">{{ personaje.name }}</h1>
+                <div class="flex items-center gap-1">
+                    <div :class="statusData[personaje.status]" class="rounded-full h-3 w-3"></div>
+                    <h4 class="font-medium">{{ personaje.status }} - {{ personaje.species }}</h4>
+                </div>
+                <h4>{{ personaje.location.name }}</h4>
             </div>
-            <h4>{{ personaje.location.name }}</h4>
+        </transition-group>
 
-        </div> -->
 
 
     </div>
-
+    <div class="flex justify-center p-6">
+        <button class="px-4 py-2 bg-blue-500 text-white rounded-lg" @click="loadMore()">Más
+            personajes...</button>
+    </div>
 
 </template>
+
+<style scoped>
+/* Estilos para la transición de los personajes */
+.fade-enter-active,
+.fade-leave-active {
+    transition: opacity 0.5s ease;
+}
+
+.fade-enter,
+.fade-leave-to {
+    opacity: 0;
+}
+</style>
